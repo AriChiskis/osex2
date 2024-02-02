@@ -1,78 +1,76 @@
-//
-// Created by ari on 1/31/24.
-//
 #define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
 #include <signal.h>
+#include <unistd.h>
+#include <sys/wait.h>
 
-#include "myshell.h"
+// Function Prototypes
+int prepare(void);
+int process_arglist(int count, char** arglist);
+int finalize(void);
+int is_background_command(int count, char** arglist);
+void execute_command(char** arglist, int background);
+
+// Ignore SIGINT in the parent process
 int prepare(void) {
     struct sigaction sa;
-
-    // Configure the shell to ignore SIGINT
-    sa.sa_handler = SIG_IGN; // Ignore SIGINT
-    sigemptyset(&sa.sa_mask); // No additional signals to block
-    sa.sa_flags = 0; // No special flags
-
+    sa.sa_handler = SIG_IGN; // Ignore signal
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = 0;
     if (sigaction(SIGINT, &sa, NULL) == -1) {
         perror("Failed to ignore SIGINT");
-        return 1; // Return an error code if sigaction fails
+        return -1;
     }
-
-    // Optionally, set up SIGCHLD handling to automatically reap zombie processes
-    sa.sa_handler = SIG_DFL; // Default action for SIGCHLD
-    sa.sa_flags = SA_NOCLDSTOP | SA_RESTART; // Don't notify for stopped children, restart syscalls if possible
-
-    if (sigaction(SIGCHLD, &sa, NULL) == -1) {
-        perror("Failed to set default SIGCHLD handler");
-        return 1; // Return an error code if sigaction fails
-    }
-
-    return 0; // Success
-}
-
-
-// arglist - a list of char* arguments (words) provided by the user
-// it contains count+1 items, where the last item (arglist[count]) and *only* the last is NULL
-// RETURNS - 1 if should continue, 0 otherwise
-int process_arglist(int count, char **arglist) {
-    pid_t pid;
-    int status;
-
-    // Fork a new process
-    pid = fork();
-
-    if (pid == -1) {
-        // If fork fails, print an error message and return 1 to continue processing commands
-        perror("fork");
-        return 1;
-    } else if (pid == 0) {
-        // Child process
-        // Execute the command with execvp. If execvp fails, print an error message and exit the child process
-        if (execvp(arglist[0], arglist) == -1) {
-            perror("execvp");
-            exit(EXIT_FAILURE);
-        }
-    } else {
-        // Parent process
-        // Wait for the child process to finish execution
-        do {
-            waitpid(pid, &status, WUNTRACED);
-        } while (!WIFEXITED(status) && !WIFSIGNALED(status));
-    }
-
-    // Return 1 to indicate that the shell should continue processing commands
-    return 1;
-}
-
-
-// prepare and finalize calls for initialization and destruction of anything required
-int finalize(void) {
-    // Perform any necessary cleanup before exiting the shell.
-    // Since there's no specific cleanup required for the base case, just return 0.
     return 0;
 }
 
+// Determine if the command should run in the background
+int is_background_command(int count, char** arglist) {
+    if (count > 0 && strcmp(arglist[count - 1], "&") == 0) {
+        arglist[count - 1] = NULL; // Remove "&" from arglist
+        return 1; // True for background command
+    }
+    return 0; // False for foreground command
+}
+
+// Execute the given command, taking into account background execution
+void execute_command(char** arglist, int background) {
+    pid_t pid = fork();
+
+    if (pid == 0) { // Child process
+        // Child processes should not ignore SIGINT
+        signal(SIGINT, SIG_DFL);
+        if (execvp(arglist[0], arglist) == -1) {
+            perror("execvp failed");
+            exit(EXIT_FAILURE);
+        }
+    } else if (pid > 0) { // Parent process
+        if (!background) {
+            int status;
+            waitpid(pid, &status, 0); // Wait for the child process to complete
+        } else {
+            printf("Started background job %d\n", pid);
+        }
+    } else {
+        perror("fork failed");
+        exit(EXIT_FAILURE);
+    }
+}
+
+// Main function to process command line arguments
+int process_arglist(int count, char** arglist) {
+    int background = is_background_command(count, arglist);
+    execute_command(arglist, background);
+    return 1; // Indicate to continue the loop
+}
+
+// Restore any modified signal handlers if needed
+int finalize(void) {
+    // Placeholder for any cleanup needed before shell exit
+    return 0;
+}
+
+// Add your main function that calls prepare, repeatedly calls process_arglist for each command, and calls finalize at the end.

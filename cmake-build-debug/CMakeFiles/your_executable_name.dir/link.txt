@@ -1,0 +1,1 @@
+/usr/bin/cc  -O3 -D_POSIX_C_SOURCE=200809 -Wall -g -rdynamic CMakeFiles/your_executable_name.dir/shell.c.o CMakeFiles/your_executable_name.dir/myshell.c.o -o your_executable_name 

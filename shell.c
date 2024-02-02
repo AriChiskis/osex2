@@ -22,7 +22,9 @@ int main(void)
         exit(1);
 
     while (1)
+
     {
+        printf("write a new command !!!!\n");
         char** arglist = NULL;
         char* line = NULL;
         size_t size;

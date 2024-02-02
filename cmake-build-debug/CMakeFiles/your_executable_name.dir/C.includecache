@@ -1,0 +1,24 @@
+#IncludeRegexLine: ^[ 	]*[#%][ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+/home/ari/Desktop/OS/osex2/myshell.c
+stdio.h
+-
+stdlib.h
+-
+string.h
+-
+errno.h
+-
+signal.h
+-
+unistd.h
+-
+sys/wait.h
+-
+
