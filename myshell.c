@@ -10,6 +10,7 @@
 
 //code done with  the help of chat gpt but with my complete enterprenuership
 
+// sigchild_handelr prepare takes care of the signals for parent and child processes
 void sigchld_handler(int signum) {
     // Wait for all children without blocking
     while (waitpid((pid_t)(-1), 0, WNOHANG) > 0) {}
@@ -40,7 +41,7 @@ int prepare(void) {
     return 0;
 }
 
-
+//this functions finds what is the special command is (and if there is a special command)
 int find_pipe_index(char** arglist, int count) {
     for (int i = 0; i < count; ++i) {
         if (strcmp(arglist[i], "|") == 0) {
@@ -94,7 +95,7 @@ int setup_output_redirection(char** arglist) {
 }
 
 
-//execusionss
+//execusions for specail commands:
 void execute_with_input_redirection(char** arglist, int count) {
     int redirection_index = -1;
     // Find the input redirection symbol and its associated file
@@ -211,7 +212,7 @@ void execute_with_pipe(char** arglist, int pipe_index, int count) {
     waitpid(pid2, &status2, 0);
 }
 
-// Execute the given command, taking into account background execution
+
 void execute_with_output_redirection(char** arglist) {
     int fd = setup_output_redirection(arglist); // Setup redirection and modify arglist if needed
 
@@ -316,10 +317,9 @@ int process_arglist(int count, char** arglist) {
 
 
 
-// Restore any modified signal handlers if needed
+
 int finalize(void) {
-    // Placeholder for any cleanup needed before shell exit
+
     return 0;
 }
 
-// Add your main function that calls prepare, repeatedly calls process_arglist for each command, and calls finalize at the end.
