@@ -8,14 +8,6 @@
 #include <sys/wait.h>
 #include <fcntl.h> // Required for file operations
 
-// Function Prototypes
-int prepare(void);
-int process_arglist(int count, char** arglist);
-int finalize(void);
-int is_background_command(int count, char** arglist);
-void execute_command(char** arglist, int background);
-int setup_output_redirection(char** arglist);
-void sigchld_handler(int signum);
 
 void sigchld_handler(int signum) {
     // Wait for all children without blocking
@@ -70,6 +62,15 @@ int is_background_command(int count, char** arglist) {
 int find_input_redirection_index(char** arglist, int count) {
     for (int i = 0; i < count - 1; ++i) { // Ensure there's at least one argument after "<"
         if (strcmp(arglist[i], "<") == 0) {
+            return i; // Return the index of "<"
+        }
+    }
+    return -1; // Indicate no input redirection symbol was found
+}
+
+int find_output_redirection_index(char** arglist, int count) {
+    for (int i = 0; i < count - 1; ++i) { // Ensure there's at least one argument after "<"
+        if (strcmp(arglist[i], ">") == 0) {
             return i; // Return the index of "<"
         }
     }
@@ -210,7 +211,7 @@ void execute_with_pipe(char** arglist, int pipe_index, int count) {
 }
 
 // Execute the given command, taking into account background execution
-void execute_command(char** arglist, int background) {
+void execute_with_output_redirection(char** arglist) {
     int fd = setup_output_redirection(arglist); // Setup redirection and modify arglist if needed
 
     pid_t pid = fork();
@@ -226,6 +227,41 @@ void execute_command(char** arglist, int background) {
             close(fd); // Close the file descriptor as it's no longer needed
         }
 
+
+        struct sigaction sa;
+        sa.sa_handler = SIG_DFL; // Default handling for foreground process
+        sigemptyset(&sa.sa_mask);
+        sa.sa_flags = 0;
+        if (sigaction(SIGINT, &sa, NULL) == -1) {
+            perror("sigaction failed");
+            exit(EXIT_FAILURE);
+        }
+
+
+        execvp(arglist[0], arglist);
+        perror("execvp failed"); // Execvp only returns on error
+        exit(EXIT_FAILURE);
+    } else if (pid > 0) { // Parent process
+        int status;
+        waitpid(pid, &status, 0); // Wait for child to finish
+
+        if (fd >= 0) {
+            close(fd); // Ensure the file descriptor is closed in the parent
+        }
+    } else {
+        perror("fork failed");
+        exit(EXIT_FAILURE);
+    }
+}
+
+
+// Execute the given command, taking into account background execution
+void execute_command(char** arglist, int background) {
+    //int fd = setup_output_redirection(arglist); // Setup redirection and modify arglist if needed
+
+    pid_t pid = fork();
+
+    if (pid == 0) { // Child process
         if (!background) {
             struct sigaction sa;
             sa.sa_handler = SIG_DFL; // Default handling for foreground process
@@ -245,11 +281,9 @@ void execute_command(char** arglist, int background) {
             int status;
             waitpid(pid, &status, 0); // Wait for child to finish
         } else {
-            printf("Started background job %d\n", pid);
+            //printf("Started background job %d\n", pid); // this is for mentioning background processes started
         }
-        if (fd >= 0) {
-            close(fd); // Ensure the file descriptor is closed in the parent
-        }
+
     } else {
         perror("fork failed");
         exit(EXIT_FAILURE);
@@ -262,14 +296,16 @@ void execute_command(char** arglist, int background) {
 
 int process_arglist(int count, char** arglist) {
     int pipe_index = find_pipe_index(arglist, count);
-    int redirection_index = find_input_redirection_index(arglist, count);
-
+    int input_redirection_index = find_input_redirection_index(arglist, count);
+    int output_redirection_index = find_output_redirection_index(arglist, count);
     // Handle piping if detected
     if (pipe_index != -1) {
         execute_with_pipe(arglist, pipe_index, count);
-    } else if (redirection_index != -1) { // Handle input redirection if detected
+    } else if (input_redirection_index != -1) { // Handle input redirection if detected
         execute_with_input_redirection(arglist, count);
-    } else {
+    } else if (output_redirection_index != -1) { // Handle output redirection if detected
+        execute_with_output_redirection(arglist);
+    }else {
         // Handle commands without piping or input redirection
         int background = is_background_command(count, arglist);
         execute_command(arglist, background);
