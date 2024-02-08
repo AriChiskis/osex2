@@ -8,6 +8,7 @@
 #include <sys/wait.h>
 #include <fcntl.h> // Required for file operations
 
+//code done with  the help of chat gpt but with my complete enterprenuership
 
 void sigchld_handler(int signum) {
     // Wait for all children without blocking
